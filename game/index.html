@@ -3,14 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EMBERWING — Canyon Courier</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23141021'/%3E%3Cpath d='M4 20 L16 10 L28 20 L16 17 Z' fill='%23ffb454'/%3E%3Cpath d='M14 22 L16 14 L18 22 Z' fill='%23ff7b00'/%3E%3C/svg%3E">
+<title>EMBERWING II — Ember Valley</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="styles.css">
 <script src="vendor/three.min.js"></script>
 <script src="src/config.js"></script>
 <script src="src/util.js"></script>
 <script src="src/audio.js"></script>
+<script src="src/input.js"></script>
 <script src="src/terrain.js"></script>
+<script src="src/sky.js"></script>
 <script src="src/aircraft.js"></script>
 <script src="src/rings.js"></script>
 <script src="src/physics.js"></script>
@@ -19,105 +21,93 @@
 <script src="src/main.js"></script>
 </head>
 <body>
-<div id="stage">
-  <canvas id="scene"></canvas>
+<div id="game"></div>
 
-  <div id="hud" class="hidden">
-    <div id="topbar">
-      <div class="panel" id="mission-panel">
-        <div class="label">SORTIE</div>
-        <div class="value" id="mission-name">First Light</div>
-        <div class="sub"><span id="rings-count">0 / 6</span> RINGS &nbsp;·&nbsp; <span id="mission-time">0:00</span></div>
-      </div>
-      <div class="panel" id="compass-panel">
-        <canvas id="compass" width="440" height="40"></canvas>
-        <div class="sub" id="heading-text">HDG 360°</div>
-      </div>
-      <div class="panel" id="fuel-panel">
-        <div class="label">FUEL</div>
-        <div class="bar"><div id="fuel-fill"></div></div>
-        <div class="sub"><span id="fuel-text">100%</span> &nbsp;·&nbsp; THR <span id="throttle-text">0%</span></div>
-      </div>
-      <div class="panel" id="score-panel">
-        <div class="label">SCORE</div>
-        <div class="value" id="score-text">0</div>
-        <div class="sub">TOTAL <span id="total-score-text">0</span></div>
-      </div>
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="hud-top">
+    <div id="hud-left">
+      <div id="hud-sortie">EMBER DAWN</div>
+      <div id="hud-rings">RINGS 0/6</div>
+      <div id="hud-score-line">SCORE <span id="hud-score">0</span></div>
     </div>
-
-    <div id="ring-arrow" class="hidden"><span id="ring-arrow-glyph">➤</span><span id="ring-arrow-dist">—</span></div>
-    <div id="toast"></div>
-    <div id="warn" class="hidden"></div>
-
-    <div id="bottombar">
-      <div class="panel" id="attitude-panel">
-        <canvas id="attitude" width="168" height="168"></canvas>
-        <div class="sub">ATTITUDE</div>
-      </div>
-      <div class="panel" id="speed-panel">
-        <div class="label">AIRSPEED</div>
-        <div class="big"><span id="airspeed-text">0</span><span class="unit"> kt</span></div>
-        <div class="sub">VSI <span id="vsi-text">0</span> ft/min</div>
-      </div>
-      <div class="panel" id="alt-panel">
-        <div class="label">ALTITUDE</div>
-        <div class="big"><span id="altitude-text">0</span><span class="unit"> ft</span></div>
-        <div class="sub">AGL <span id="agl-text">0</span> ft</div>
-      </div>
-      <div class="panel" id="map-panel">
-        <canvas id="minimap" width="200" height="132"></canvas>
-        <div class="sub">CANYON · EMBER FLATS <span id="map-dist">—</span></div>
-      </div>
+    <div id="hud-centre">
+      <div id="hud-compass"><div id="hud-compass-strip"></div><div id="hud-compass-needle"></div></div>
+      <div id="hud-arrow"><span id="hud-arrow-sym">◎</span><span id="hud-arrow-dist"></span></div>
     </div>
-
-    <div id="stick" class="hidden"><div id="stick-dot"></div></div>
-    <div id="hint">W/S throttle · ↑/↓ pitch · A/D bank · hold mouse to steer · Space airbrake · C camera · P pause</div>
-  </div>
-
-  <div id="title" class="overlay">
-    <div class="card">
-      <h1>EMBERWING</h1>
-      <p class="tagline">CANYON COURIER &nbsp;·&nbsp; fly the Kestrel K-7 down the river canyon at dusk</p>
-      <p class="brief">Thread the glowing rings, watch your fuel, and set her down on the lit strip at Ember Flats. A hard landing, an empty tank or a kiss of rock ends the sortie.</p>
-      <div id="sortie-list"></div>
-      <div class="controls">
-        <div><b>W / S</b> throttle up / down</div><div><b>↑ / ↓</b> pitch up / down</div>
-        <div><b>A / D · ← / →</b> bank &amp; turn</div><div><b>Mouse</b> hold to steer (virtual stick)</div>
-        <div><b>Space</b> airbrake</div><div><b>C</b> camera · <b>P</b> pause · <b>M</b> sound</div>
-      </div>
-      <p class="start-hint">Pick a sortie, then press <b>Enter</b> or click <b>FLY</b></p>
-      <button id="fly-button" type="button">FLY</button>
-      <p class="foot">An original game. Runs offline from its own files. No network, no accounts.</p>
+    <div id="hud-right">
+      <div id="hud-fuel"><div id="hud-fuel-fill"></div><span id="hud-fuel-text">FUEL 100</span></div>
+      <div id="hud-wind">WIND 0 KT N</div>
     </div>
   </div>
-
-  <div id="end" class="overlay hidden">
-    <div class="card">
-      <h1 id="end-title">SORTIE COMPLETE</h1>
-      <p class="tagline" id="end-sub">Down safe at Ember Flats.</p>
-      <div id="end-stats"></div>
-      <p class="start-hint" id="end-hint">Press <b>Enter</b> for the next sortie</p>
-      <div class="row">
-        <button id="end-next" type="button">NEXT SORTIE</button>
-        <button id="end-retry" type="button">FLY AGAIN</button>
-        <button id="end-menu" type="button">MENU</button>
+  <div id="hud-message" class="hidden"></div>
+  <div id="hud-flare" class="hidden"></div>
+  <div id="hud-bottom">
+    <div id="hud-att">
+      <div id="hud-att-roll">
+        <div id="hud-att-horizon"></div>
+        <div id="hud-att-centre"></div>
       </div>
+      <div id="hud-att-label">ATT</div>
     </div>
-  </div>
-
-  <div id="pause" class="overlay hidden">
-    <div class="card small">
-      <h1>PAUSED</h1>
-      <p class="brief">Press <b>P</b> or <b>Enter</b> to keep flying.</p>
+    <div id="hud-tapes">
+      <div class="tape"><span class="tape-label">KIAS</span><span id="hud-ias">0</span></div>
+      <div class="tape"><span class="tape-label">ALT FT</span><span id="hud-alt">0</span></div>
+      <div class="tape"><span class="tape-label">VSI FPM</span><span id="hud-vsi">+0</span></div>
+      <div class="tape"><span class="tape-label" id="hud-agl">AGL 0 FT</span></div>
     </div>
-  </div>
-
-  <div id="fatal" class="overlay hidden">
-    <div class="card small">
-      <h1>NO WEBGL</h1>
-      <p class="brief">EMBERWING needs a browser with WebGL. Try desktop Chrome.</p>
-    </div>
+    <div id="hud-throttle"><div id="hud-throttle-fill"></div><span>THR</span></div>
+    <canvas id="hud-minimap" width="170" height="170"></canvas>
   </div>
 </div>
+
+<!-- Title -->
+<div id="title" class="screen">
+  <div class="panel">
+    <h1>EMBERWING II</h1>
+    <h2>EMBER VALLEY</h2>
+    <p class="tag">A bush-plane run down a river canyon at dusk. Thread the rings,<br>mind the fuel, and put her down on the far strip.</p>
+    <p class="keys">W/S throttle &nbsp;·&nbsp; ARROWS fly &nbsp;·&nbsp; SPACE brake &nbsp;·&nbsp; C camera &nbsp;·&nbsp; P pause &nbsp;·&nbsp; M mute</p>
+    <p class="keys">Mouse: hold and drag to fly the stick. Keys 1–3 pick a sortie.</p>
+    <p class="cta">PRESS ENTER TO FLY</p>
+    <p class="best" id="title-best"></p>
+  </div>
+</div>
+
+<!-- Briefing -->
+<div id="briefing" class="screen hidden">
+  <div class="panel">
+    <h2 id="briefing-name">EMBER DAWN</h2>
+    <p id="briefing-desc">6 rings · gentle wind · generous fuel</p>
+    <p id="briefing-detail"></p>
+    <p class="cta">PRESS ENTER TO TAKE OFF</p>
+  </div>
+</div>
+
+<!-- Pause -->
+<div id="pause" class="screen hidden">
+  <div class="panel">
+    <h2>PAUSED</h2>
+    <p class="cta">PRESS P TO KEEP FLYING</p>
+  </div>
+</div>
+
+<!-- End of sortie -->
+<div id="end" class="screen hidden">
+  <div class="panel">
+    <h2 id="end-title">GREASED IT</h2>
+    <pre id="end-body"></pre>
+    <p class="cta" id="end-hint">ENTER — NEXT SORTIE</p>
+  </div>
+</div>
+
+<!-- Fatal -->
+<div id="fatal" class="screen hidden">
+  <div class="panel">
+    <h2>NO WEBGL</h2>
+    <p>This game needs WebGL. Please open it in a desktop browser with WebGL enabled.</p>
+  </div>
+</div>
+
 </body>
 </html>

@@ -1,9 +1,7 @@
-// A tiny static server for game/ (Node 22, standard library only), a development
-// convenience so EMBERWING can be played locally without a build step:
-//   node serve.ts [--port 8080]
-// Serves game/ on http://localhost:8080, sends the MIME types a browser game
-// needs, and refuses any path outside game/. Nothing clever, nothing for the
-// internet — the entry itself is only the static files under game/.
+// A tiny static server for game/ (Node 22, standard library only), so the
+// entry can be played locally without a build step: `node serve.ts` serves
+// game/ on http://localhost:8080. It sends the MIME types a browser game
+// needs, refuses any path outside game/, and otherwise does nothing clever.
 
 import { createReadStream, statSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -29,10 +27,6 @@ const MIME: Record<string, string> = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-  '.wav': 'audio/wav',
-  '.mp3': 'audio/mpeg',
-  '.ogg': 'audio/ogg',
   '.txt': 'text/plain; charset=utf-8',
 };
 
@@ -67,5 +61,5 @@ createServer((request, response) => {
   });
   createReadStream(file).pipe(response);
 }).listen(port, '127.0.0.1', () => {
-  console.log(`emberwing game/ is on http://localhost:${port}`);
+  console.log(`game/ is on http://localhost:${port}`);
 });

@@ -1,39 +1,45 @@
-// EMBERWING — Canyon Courier. One file for every number the game is tuned by:
-// the three sorties, the canyon's shape, the flight model, the palette and the
-// keys. Nothing else in the game hard-codes a mission value; change it here.
+// EMBERWING II — Ember Valley. Every number the game is tuned by lives here:
+// the three sorties, the valley's shape, the flight model, the palette and the
+// keys. No other file hard-codes a mission value; change it here.
 
 (function () {
   'use strict';
 
-  var EMBER = window.EMBER || (window.EMBER = {});
+  var EMBER2 = window.EMBER2 || (window.EMBER2 = {});
 
-  EMBER.config = {
-    // The canyon runs north, along -Z. The start strip sits at z = 120, the
-    // destination strip at z = -11000, both on the valley floor (y ~ 0).
-    canyon: {
+  EMBER2.config = {
+    // The valley runs north, along -Z. The home strip sits at z = 120, the
+    // far strip at z = -11000, both on the valley floor (y ~ 0).
+    valley: {
       halfWidth: 2600,          // terrain spans x in [-2600, 2600]
-      zNear: 1100,              // terrain extends a little south of the start
-      zFar: -12100,             // and a little past the destination strip
-      wallStart: 330,           // valley floor stays flat inside |x| < 330
-      wallTop: 1500,            // canyon walls crest around |x| = 1500
-      wallHeight: 560,          // wall crest height in metres
-      plateauHeight: 640,       // rolling plateau beyond the walls
-      seed: 20261126,
+      zNear: 1100,              // terrain extends a little south of home
+      zFar: -12100,             // and a little past the far strip
+      floorHalf: 300,           // valley floor stays flat inside |d| < 300
+      wallTop: 1500,            // canyon walls crest around |d| = 1500
+      wallHeight: 540,          // wall crest height in metres
+      plateauHeight: 620,       // rolling plateau beyond the walls
+      seed: 20261127,
+    },
+    // The river meanders down the valley floor; rings follow it.
+    river: {
+      amp1: 180, freq1: 0.00042,
+      amp2: 95, freq2: 0.0011,
+      width: 64,
     },
     strips: {
-      start: { x: 0, z: 120, heading: Math.PI, length: 620, width: 42 },
-      dest: { x: 0, z: -11000, heading: Math.PI, length: 680, width: 46 },
+      home: { x: 0, z: 120, heading: 0, length: 620, width: 42 },
+      far: { x: 0, z: -11000, heading: 0, length: 680, width: 46 },
     },
-    // One sortie = one flight down the canyon. Rings are placed along the
-    // river's path; lateral and height offsets are seeded per sortie.
+    // One sortie = one flight down the valley. Rings sit along the river;
+    // lateral and height offsets are seeded per sortie.
     sorties: [
       {
-        id: 0, name: 'First Light', desc: '6 rings · gentle wind · generous fuel',
+        id: 0, name: 'Ember Dawn', desc: '6 rings · gentle wind · generous fuel',
         rings: 6, ringRadius: 30, fuel: 100, fuelPerRing: 9,
         wind: 2.0, gust: 1.0, timeOfDay: 'dusk', cloudCover: 0.5,
       },
       {
-        id: 1, name: 'Canyon Run', desc: '10 rings · crosswind gusts · tighter fuel',
+        id: 1, name: 'Ridge Runner', desc: '10 rings · crosswind gusts · tighter fuel',
         rings: 10, ringRadius: 26, fuel: 92, fuelPerRing: 7,
         wind: 5.0, gust: 2.6, timeOfDay: 'dusk', cloudCover: 0.65,
       },
@@ -49,7 +55,7 @@
       stallSpeed: 26,           // below this the wing stops answering
       minSpeed: 12,             // the plane never flies slower than this in the air
       thrustAccel: 9.5,         // forward acceleration at full throttle
-      dragBase: 0.0013,         // quadratic drag: full throttle balances at ~85 m/s
+      dragBase: 0.0013,         // quadratic drag: full throttle balances near 85 m/s
       dragTurn: 0.03,           // extra drag while banked hard
       rollRate: 1.9,            // radians per second of bank authority
       pitchRate: 1.15,          // radians per second of pitch authority

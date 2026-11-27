@@ -1,194 +1,228 @@
-// EMBERWING — Canyon Courier. The glowing rings: where they sit, what they
-// look like, and whether the plane has flown through them. Rings follow the
-// river down the canyon; the last one lines the plane up with the destination
-// strip. A burst of sparks marks a ring flown.
+// EMBERWING II — Ember Valley. The ring course: glowing hoops threaded down
+// the river, one per leg, each pulsing until you fly it. Flying a ring
+// bursts particles, chimes, pays points and fuel — and points the arrow at
+// the next one.
 
 (function () {
   'use strict';
 
-  var EMBER = window.EMBER || (window.EMBER = {});
-  var palette = EMBER.config.palette;
-  var util = EMBER.util;
+  var EMBER2 = window.EMBER2 || (window.EMBER2 = {});
+  var util = EMBER2.util;
+  var cfg = EMBER2.config;
 
-  var BURST_COUNT = 70;
-  var BURST_LIFE = 0.9;
+  function Rings(scene) {
+    this.scene = scene;
+    this.list = [];
+    this.current = 0;
+    this.particles = [];
+    this.particleGeo = null;
+    this._buildParticles();
+  }
 
-  function buildRings(scene, sortie) {
-    var rand = util.mulberry32(EMBER.config.canyon.seed + sortie.id * 131);
-    var dest = EMBER.config.strips.dest;
-    var rings = [];
-    var group = new THREE.Group();
-    scene.add(group);
-
-    var zStart = -900;
-    var zEnd = -10300;
-    for (var i = 0; i < sortie.rings; i++) {
-      var t = sortie.rings === 1 ? 0 : i / (sortie.rings - 1);
-      var z = util.lerp(zStart, zEnd, t) + (rand() - 0.5) * 260;
-      var last = i === sortie.rings - 1;
-      var x = last ? 0 : EMBER.terrain.riverX(z) + (rand() - 0.5) * 320;
-      var y = last ? 150 : 130 + rand() * 150;
-      var radius = sortie.ringRadius * (0.94 + rand() * 0.12);
-      rings.push(makeRing(group, new THREE.Vector3(x, y, z), radius, i));
-    }
-
-    // One reusable spark burst.
-    var burstGeo = new THREE.BufferGeometry();
-    var burstPos = new Float32Array(BURST_COUNT * 3);
-    burstGeo.setAttribute('position', new THREE.BufferAttribute(burstPos, 3));
-    var burstMat = new THREE.PointsMaterial({
-      color: 0xffb347,
-      size: 4,
+  Rings.prototype._buildParticles = function () {
+    // One shared Points cloud for every burst; each burst writes its own
+    // positions and velocities into it, then it fades.
+    var max = 240;
+    var pos = new Float32Array(max * 3);
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    var mat = new THREE.PointsMaterial({
+      color: 0xffc46b,
+      size: 2.2,
       transparent: true,
       opacity: 0,
       depthWrite: false,
+      blending: THREE.AdditiveBlending,
     });
-    var burst = new THREE.Points(burstGeo, burstMat);
-    burst.frustumCulled = false;
-    scene.add(burst);
-    var burstVel = [];
-    var burstAge = Infinity;
+    var points = new THREE.Points(geo, mat);
+    points.frustumCulled = false;
+    this.scene.add(points);
+    this.particleGeo = geo;
+    this.particleMat = mat;
+    this.particlePoints = points;
+    this.particleVel = [];
+    this.particleLife = 0;
+    for (var i = 0; i < max; i++) this.particleVel.push(new THREE.Vector3());
+  };
 
-    function makeRing(parent, pos, radius, index) {
-      var ring = new THREE.Group();
-      var torus = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, 1.7, 10, 30),
-        new THREE.MeshBasicMaterial({ color: palette.ringCore }),
-      );
-      ring.add(torus);
-      var halo = new THREE.Mesh(
-        new THREE.TorusGeometry(radius + 2.2, 2.6, 8, 30),
-        new THREE.MeshBasicMaterial({
-          color: palette.ring,
-          transparent: true,
-          opacity: 0.22,
-          depthWrite: false,
-        }),
-      );
-      ring.add(halo);
-      // A light pillar so the ring can be spotted from far down the canyon.
-      var pillar = new THREE.Mesh(
-        new THREE.CylinderGeometry(2.2, 2.2, 420, 8, 1, true),
-        new THREE.MeshBasicMaterial({
-          color: palette.ring,
-          transparent: true,
-          opacity: 0.10,
-          side: THREE.DoubleSide,
-          depthWrite: false,
-        }),
-      );
-      pillar.position.y = 210;
-      ring.add(pillar);
-      ring.position.copy(pos);
-      parent.add(ring);
-      return {
-        index: index,
-        pos: pos,
-        radius: radius,
-        group: ring,
-        torus: torus,
-        halo: halo,
-        pillar: pillar,
-        passed: false,
-      };
+  // Lay a sortie's rings along the river, seeded so each sortie differs.
+  Rings.prototype.buildCourse = function (sortie) {
+    this.clear();
+    var terrain = EMBER2.terrain;
+    var rng = util.makeRng(1000 + sortie.id * 77);
+    var n = sortie.rings;
+    var zStart = -900;
+    var zEnd = -10200;
+    for (var i = 0; i < n; i++) {
+      var t = n === 1 ? 0.5 : i / (n - 1);
+      var z = zStart + (zEnd - zStart) * t;
+      var rx = terrain.riverX(z);
+      var lateral = (rng() * 2 - 1) * 150;
+      var x = rx + lateral;
+      var ground = terrain.heightAt(x, z);
+      var y = Math.max(55, ground + 55 + rng() * 110);
+      this._addRing(new THREE.Vector3(x, y, z), sortie.ringRadius, i);
     }
+    this.current = 0;
+    this._markCurrent();
+  };
 
-    function fireBurst(centre) {
-      for (var i = 0; i < BURST_COUNT; i++) {
-        burstPos[i * 3] = centre.x;
-        burstPos[i * 3 + 1] = centre.y;
-        burstPos[i * 3 + 2] = centre.z;
-        var theta = Math.random() * Math.PI * 2;
-        var phi = Math.acos(Math.random() * 2 - 1);
-        var speed = 12 + Math.random() * 26;
-        burstVel[i] = new THREE.Vector3(
-          speed * Math.sin(phi) * Math.cos(theta),
-          speed * Math.cos(phi),
-          speed * Math.sin(phi) * Math.sin(theta),
+  Rings.prototype._addRing = function (center, radius, index) {
+    var group = new THREE.Group();
+    // The hoop: a bright torus with a warm emissive core.
+    var torus = new THREE.Mesh(
+      new THREE.TorusGeometry(radius, radius * 0.09, 10, 40),
+      new THREE.MeshStandardMaterial({
+        color: 0x664411,
+        emissive: cfg.palette.ringCore,
+        emissiveIntensity: 1.4,
+      }),
+    );
+    group.add(torus);
+    // An inner glow disc, faint, so the hole reads as a target.
+    var disc = new THREE.Mesh(
+      new THREE.CircleGeometry(radius * 0.96, 28),
+      new THREE.MeshBasicMaterial({
+        color: cfg.palette.ring,
+        transparent: true,
+        opacity: 0.10,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    );
+    group.add(disc);
+    // A beacon light on top, so the next ring is visible from far away.
+    var beacon = new THREE.Mesh(
+      new THREE.SphereGeometry(radius * 0.14, 8, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0x331100,
+        emissive: 0xffb347,
+        emissiveIntensity: 2.4,
+      }),
+    );
+    beacon.position.y = radius + radius * 0.2;
+    group.add(beacon);
+    group.position.copy(center);
+    // Rings face the incoming plane: their normal is +Z (toward home).
+    group.rotation.y = 0;
+    this.scene.add(group);
+    this.list.push({
+      center: center,
+      radius: radius,
+      index: index,
+      group: group,
+      torus: torus,
+      disc: disc,
+      beacon: beacon,
+      flown: false,
+      pulse: Math.random() * Math.PI * 2,
+    });
+  };
+
+  Rings.prototype._markCurrent = function () {
+    for (var i = 0; i < this.list.length; i++) {
+      var ring = this.list[i];
+      var isCurrent = i === this.current && !ring.flown;
+      ring.torus.material.emissiveIntensity = isCurrent ? 2.2 : ring.flown ? 0.25 : 1.1;
+      ring.disc.material.opacity = isCurrent ? 0.16 : 0.07;
+    }
+  };
+
+  Rings.prototype.nextRing = function () {
+    return this.current < this.list.length ? this.list[this.current] : null;
+  };
+
+  Rings.prototype.flownCount = function () {
+    var n = 0;
+    for (var i = 0; i < this.list.length; i++) if (this.list[i].flown) n++;
+    return n;
+  };
+
+  Rings.prototype.allFlown = function () {
+    return this.current >= this.list.length;
+  };
+
+  // Did the plane cross this ring's plane inside its radius? Call with the
+  // plane's previous and new positions each frame; the ring's normal is +Z,
+  // so crossing means the z sign flips from + to - relative to its centre.
+  Rings.prototype.checkPass = function (prevPos, newPos) {
+    var ring = this.nextRing();
+    if (!ring) return null;
+    var prevD = prevPos.z - ring.center.z;
+    var newD = newPos.z - ring.center.z;
+    if (prevD > 0 && newD <= 0) {
+      var dx = newPos.x - ring.center.x;
+      var dy = newPos.y - ring.center.y;
+      var radial = Math.sqrt(dx * dx + dy * dy);
+      if (radial < ring.radius) {
+        ring.flown = true;
+        this.current++;
+        this._markCurrent();
+        this._burst(ring.center, ring.radius);
+        return { ring: ring, radial: radial, offset: radial / ring.radius };
+      }
+    }
+    return null;
+  };
+
+  Rings.prototype._burst = function (center, radius) {
+    var max = 240;
+    var pos = this.particleGeo.attributes.position;
+    var rng = util.makeRng((Math.random() * 1e9) | 0);
+    for (var i = 0; i < max; i++) {
+      var a = rng() * Math.PI * 2;
+      var rr = radius * (0.6 + rng() * 0.5);
+      var px = center.x + Math.cos(a) * rr;
+      var py = center.y + Math.sin(a) * rr;
+      var pz = center.z + (rng() - 0.5) * 6;
+      pos.setXYZ(i, px, py, pz);
+      var v = new THREE.Vector3(
+        Math.cos(a) * (6 + rng() * 14),
+        Math.sin(a) * (6 + rng() * 14),
+        (rng() - 0.5) * 10,
+      );
+      this.particleVel[i].copy(v);
+    }
+    pos.needsUpdate = true;
+    this.particleLife = 1;
+    this.particleMat.opacity = 0.95;
+  };
+
+  Rings.prototype.update = function (dt, time) {
+    for (var i = 0; i < this.list.length; i++) {
+      var ring = this.list[i];
+      if (ring.flown) continue;
+      var isCurrent = i === this.current;
+      var pulse = 1 + 0.18 * Math.sin(time * 2.6 + ring.pulse);
+      ring.group.scale.setScalar(isCurrent ? pulse : 1);
+      ring.beacon.material.emissiveIntensity = isCurrent ? 2.4 + Math.sin(time * 4) * 1.2 : 1.4;
+    }
+    if (this.particleLife > 0) {
+      this.particleLife -= dt * 1.4;
+      var pos = this.particleGeo.attributes.position;
+      for (var j = 0; j < 240; j++) {
+        pos.setXYZ(
+          j,
+          pos.getX(j) + this.particleVel[j].x * dt,
+          pos.getY(j) + this.particleVel[j].y * dt,
+          pos.getZ(j) + this.particleVel[j].z * dt,
         );
+        this.particleVel[j].multiplyScalar(1 - dt * 1.5);
       }
-      burstGeo.attributes.position.needsUpdate = true;
-      burstAge = 0;
+      pos.needsUpdate = true;
+      this.particleMat.opacity = Math.max(0, this.particleLife) * 0.95;
     }
+  };
 
-    function nextRing() {
-      for (var i = 0; i < rings.length; i++) {
-        if (!rings[i].passed) return rings[i];
-      }
-      return null;
+  Rings.prototype.clear = function () {
+    for (var i = 0; i < this.list.length; i++) {
+      this.scene.remove(this.list[i].group);
     }
+    this.list = [];
+    this.current = 0;
+    if (this.particleMat) this.particleMat.opacity = 0;
+    this.particleLife = 0;
+  };
 
-    function passedCount() {
-      var n = 0;
-      for (var i = 0; i < rings.length; i++) if (rings[i].passed) n++;
-      return n;
-    }
-
-    function reset() {
-      for (var i = 0; i < rings.length; i++) {
-        var ring = rings[i];
-        ring.passed = false;
-        ring.group.visible = true;
-        ring.torus.material.color.setHex(palette.ringCore);
-        ring.halo.material.opacity = 0.22;
-        ring.pillar.visible = true;
-        ring.group.scale.set(1, 1, 1);
-      }
-      burstAge = Infinity;
-      burstMat.opacity = 0;
-    }
-
-    // Returns the ring just flown through, or null.
-    function update(dt, elapsed, planePos) {
-      var hit = null;
-      var next = nextRing();
-      for (var i = 0; i < rings.length; i++) {
-        var ring = rings[i];
-        if (ring.passed) continue;
-        // The next ring pulses so the eye finds it; the rest sit steady.
-        var pulse = ring === next ? 1 + Math.sin(elapsed * 3.2) * 0.06 : 1;
-        ring.group.scale.set(pulse, pulse, pulse);
-        var dist = planePos.distanceTo(ring.pos);
-        if (dist < ring.radius * 0.85) {
-          ring.passed = true;
-          ring.torus.material.color.setHex(0x3dff7a);
-          ring.halo.material.opacity = 0.05;
-          ring.pillar.visible = false;
-          fireBurst(ring.pos);
-          hit = ring;
-        }
-      }
-      if (burstAge < BURST_LIFE) {
-        burstAge += dt;
-        var fade = 1 - burstAge / BURST_LIFE;
-        burstMat.opacity = fade;
-        for (var j = 0; j < BURST_COUNT; j++) {
-          burstPos[j * 3] += burstVel[j].x * dt;
-          burstPos[j * 3 + 1] += burstVel[j].y * dt;
-          burstPos[j * 3 + 2] += burstVel[j].z * dt;
-          burstVel[j].multiplyScalar(1 - 1.6 * dt);
-        }
-        burstGeo.attributes.position.needsUpdate = true;
-      } else if (burstMat.opacity !== 0) {
-        burstMat.opacity = 0;
-      }
-      return hit;
-    }
-
-    function dispose() {
-      scene.remove(group);
-      scene.remove(burst);
-    }
-
-    return {
-      rings: rings,
-      nextRing: nextRing,
-      passedCount: passedCount,
-      reset: reset,
-      update: update,
-      dispose: dispose,
-    };
-  }
-
-  EMBER.rings = { build: buildRings };
+  EMBER2.Rings = Rings;
 })();

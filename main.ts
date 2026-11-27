@@ -1,59 +1,37 @@
-// EMBERWING — Canyon Courier. Entry program for the make.fun best flight game
-// bounty (best-flight-game-20261126-0057), Node 22, standard library only.
-//
-// The game itself is plain static files under game/ (index.html plus its own
-// scripts and the vendored three.min.js), and the screenshots are real renders
-// of it. This program hands the entry in: it copies game/ and screenshots/
-// from beside this file into the output directory and writes dossier.json,
-// the summary the judge reads, using the vendored make.fun library.
+// EMBERWING II — Ember Valley (Node 22, standard library only). The hand-in
+// program: it copies this repository's game/ and screenshots/ to /output and
+// writes /output/dossier.json with the kit's vendored library, so the sealed
+// scorer can read the entry back byte for byte. It runs twice in the grader
+// and both runs must write the same bytes, so it does nothing time- or
+// order-dependent: the same directory always writes the same dossier.
 //
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-// The program is deterministic: run it twice and the output bytes match.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-const repoRoot = fileURLToPath(new URL('.', import.meta.url));
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const here = fileURLToPath(new URL('.', import.meta.url));
+const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-function countEntries(dir: string): number {
-  let total = 0;
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    total += 1;
-    if (statSync(path).isDirectory()) total += countEntries(path);
-  }
-  return total;
-}
+mkdirSync(out, { recursive: true });
+cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
+mkdirSync(join(out, 'screenshots'), { recursive: true });
+if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
-mkdirSync(outDir, { recursive: true });
-cpSync(join(repoRoot, 'game'), join(outDir, 'game'), { recursive: true });
-
-const shotsDir = join(outDir, 'screenshots');
-mkdirSync(shotsDir, { recursive: true });
-if (existsSync(join(repoRoot, 'screenshots'))) {
-  cpSync(join(repoRoot, 'screenshots'), shotsDir, { recursive: true });
-}
-
-// The caps match the scorer's gate: no more than 4 screenshots and none over
-// 256 KiB; game/ at most 993 files and directories and 48 MiB in all, no path
-// over 1000 bytes. Everything (game/, screenshots/, dossier.json) shares the
-// platform's own 1000-entry / 64 MiB output cap, so the game leaves room.
+// The scorer's own caps: only text_max_bytes shapes the bytes; the others
+// refuse an entry the scorer would refuse (more than 4 screenshots or one
+// over 256 KiB; more than 993 files in game/ or 48 MiB of game files in all,
+// or a path under game/ over 1000 bytes).
 writeFileSync(
-  join(outDir, 'dossier.json'),
-  buildDossier(outDir, {
+  join(out, 'dossier.json'),
+  buildDossier(out, {
     text_max_bytes: 163840,
     screenshots: { max: 4, max_bytes: 262144 },
     game_max_files: 993,
     game_max_bytes: 50331648,
     game_path_max_bytes: 1000,
   }),
-);
-
-console.log(
-  `emberwing: wrote ${countEntries(join(outDir, 'game'))} game entries and ` +
-    `${readdirSync(shotsDir).length} screenshots to ${outDir}`,
 );

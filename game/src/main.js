@@ -1,4 +1,4 @@
-// EMBERWING — Canyon Courier. Boot: waits for the document, checks for
+// EMBERWING II — Ember Valley. Boot: waits for the document, checks for
 // WebGL, and hands over to the game. All the game's own scripts are classic
 // scripts loaded in the head, so this runs last and the DOM is ready.
 
@@ -12,9 +12,10 @@
       return;
     }
     try {
-      window.EMBER.game.boot();
+      var game = new window.EMBER2.Game();
+      game.boot();
     } catch (err) {
-      if (window.console && console.error) console.error('emberwing boot failed', err);
+      if (window.console && console.error) console.error('emberwing II boot failed', err);
       var fatalBox = document.getElementById('fatal');
       if (fatalBox) fatalBox.classList.remove('hidden');
     }
